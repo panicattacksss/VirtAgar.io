@@ -11,20 +11,17 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// Объекты для хранения данных игроков и еды
 let players = {};
 let foods = [];
 
-// Параметры игры
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
-const PLAYER_SPEED = 2;          // базовая скорость игроков (пиксели за тик)
-const FOOD_COUNT = 50;           // количество еды на карте
-const FOOD_SIZE = 5;             // радиус еды
-const FOOD_GROWTH = 1;           // прирост размера игрока при поедании еды
-const EAT_THRESHOLD = 1.1;       // коэффициент, при котором больший игрок может поглотить меньшего
+const PLAYER_SPEED = 3; 
+const FOOD_COUNT = 50;
+const FOOD_SIZE = 5;  
+const FOOD_GROWTH = 1;  
+const EAT_THRESHOLD = 1.1;     
 
-// Функция для генерации случайной еды
 function spawnFood() {
   return {
     id: Math.random().toString(36).substring(2, 10),
@@ -35,23 +32,18 @@ function spawnFood() {
   };
 }
 
-// Инициализируем еду
 for (let i = 0; i < FOOD_COUNT; i++) {
   foods.push(spawnFood());
 }
 
-// Функция для вычисления расстояния между двумя точками
 function distance(x1, y1, x2, y2) {
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 }
 
-// Обработка подключений
 io.on('connection', socket => {
   console.log(`Новое соединение: ${socket.id}`);
 
-  // Ждем, пока клиент отправит событие joinGame с ником и цветом
   socket.on('joinGame', data => {
-    // data: { nickname, color }
     players[socket.id] = {
       id: socket.id,
       nickname: data.nickname || 'NoName',
@@ -63,13 +55,10 @@ io.on('connection', socket => {
       size: 15
     };
 
-    // Отправляем новому игроку текущее состояние игры
     socket.emit('currentState', { players, foods });
-    // Сообщаем остальным игрокам о новом участнике
     socket.broadcast.emit('newPlayer', players[socket.id]);
   });
 
-  // Обработка движения игрока
   socket.on('playerMove', data => {
     if (players[socket.id]) {
       players[socket.id].targetX = data.x;
@@ -77,7 +66,6 @@ io.on('connection', socket => {
     }
   });
 
-  // Обработка отключения игрока
   socket.on('disconnect', () => {
     console.log(`Отключился: ${socket.id}`);
     delete players[socket.id];
@@ -85,9 +73,7 @@ io.on('connection', socket => {
   });
 });
 
-// Игровой цикл (каждые 50 мс)
 setInterval(() => {
-  // Обновление позиций игроков
   for (let id in players) {
     let player = players[id];
     let dx = player.targetX - player.x;
@@ -97,12 +83,10 @@ setInterval(() => {
       player.x += (dx / dist) * PLAYER_SPEED;
       player.y += (dy / dist) * PLAYER_SPEED;
     }
-    // Ограничиваем координаты в пределах карты
     player.x = Math.max(player.size, Math.min(GAME_WIDTH - player.size, player.x));
     player.y = Math.max(player.size, Math.min(GAME_HEIGHT - player.size, player.y));
   }
 
-  // Обработка столкновений с едой
   for (let pid in players) {
     let player = players[pid];
     for (let i = foods.length - 1; i >= 0; i--) {
@@ -115,7 +99,6 @@ setInterval(() => {
     }
   }
 
-  // Обработка столкновений между игроками (поглощение)
   const playerIds = Object.keys(players);
   for (let i = 0; i < playerIds.length; i++) {
     let playerA = players[playerIds[i]];
@@ -138,7 +121,6 @@ setInterval(() => {
     }
   }
 
-  // Отправляем обновлённое состояние игры всем клиентам
   io.emit('stateUpdate', { players, foods });
 
 }, 50);

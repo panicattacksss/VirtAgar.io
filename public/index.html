@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Agar.io Clone</title>
+  <title>VirtAgar.io</title>
   <style>
     body {
       margin: 0;
@@ -16,44 +16,34 @@
       display: block;
       margin: 0 auto;
     }
-    /* Главное меню и лидерборд – без изменений */
     #menu { /* ... */ }
     #leaderboard { /* ... */ }
-    /* Стили для скрытого видеопотока и отладочного canvas */
     #inputVideo, #mpCanvas {
-      display: none; /* или "block" для отладки */
+      display: none;
     }
   </style>
 </head>
 <body>
-  <!-- Главное меню, лидерборд и canvas игры (оставляем без изменений) -->
   <div id="menu">
-    <h1>Agar.io Clone</h1>
+    <h1>VirtAgar.io</h1>
     <input type="text" id="nicknameInput" placeholder="Введите ник">
     <button id="startButton">Старт</button>
   </div>
 
-  <!-- Canvas игры -->
   <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-  <!-- Элемент для лидерборда -->
   <div id="leaderboard">
     <h3>Лидерборд</h3>
     <ul id="leaderList"></ul>
   </div>
 
-  <!-- Элементы для Mediapipe -->
   <video id="inputVideo" width="640" height="480" autoplay></video>
-  <!-- Этот canvas можно использовать для отрисовки результатов от mediapipe (при отладке) -->
   <canvas id="mpCanvas" width="640" height="480"></canvas>
 
-  <!-- Подключаем Socket.IO -->
   <script src="/socket.io/socket.io.js"></script>
-  <!-- Подключаем библиотеки Mediapipe -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <!-- Подключаем клиентский скрипт -->
   <script src="client.js"></script>
 </body>
 </html>
