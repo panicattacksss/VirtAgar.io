@@ -11,16 +11,15 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-let players = {};
-let foods = [];
-
-const GAME_WIDTH = 800;
-const GAME_HEIGHT = 600;
-const PLAYER_SPEED = 3; 
-const FOOD_COUNT = 50;
-const FOOD_SIZE = 5;  
-const FOOD_GROWTH = 1;  
-const EAT_THRESHOLD = 1.1;     
+const GAME_WIDTH = 5000;
+const GAME_HEIGHT = 5000;
+const PLAYER_SPEED = 3;
+const FOOD_COUNT = 600;
+const FOOD_SIZE = 5;
+const FOOD_GROWTH = 1;
+const SPIKE_COUNT = 10;
+const SPIKE_SIZE = 20;
+const EAT_THRESHOLD = 1.1;
 
 function spawnFood() {
   return {
@@ -32,22 +31,41 @@ function spawnFood() {
   };
 }
 
-for (let i = 0; i < FOOD_COUNT; i++) {
-  foods.push(spawnFood());
+function spawnSpike() {
+  return {
+    id: 'spike_' + Math.random().toString(36).substring(2, 10),
+    x: Math.random() * (GAME_WIDTH - 2 * SPIKE_SIZE) + SPIKE_SIZE,
+    y: Math.random() * (GAME_HEIGHT - 2 * SPIKE_SIZE) + SPIKE_SIZE,
+    size: SPIKE_SIZE,
+    color: 'black'
+  };
 }
 
-function distance(x1, y1, x2, y2) {
-  return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-}
+let rooms = {}; // { roomName: { players: {}, foods: [], spikes: [] } }
 
 io.on('connection', socket => {
   console.log(`Новое соединение: ${socket.id}`);
 
   socket.on('joinGame', data => {
-    players[socket.id] = {
+    const { nickname, color, room, skin } = data;
+  socket.join(room);
+  socket.room = room;
+
+    if (!rooms[room]) {
+      rooms[room] = { players: {}, foods: [], spikes: [] };
+      for (let i = 0; i < FOOD_COUNT; i++) {
+        rooms[room].foods.push(spawnFood());
+      }
+      for (let i = 0; i < SPIKE_COUNT; i++) {
+        rooms[room].spikes.push(spawnSpike());
+      }
+    }
+
+    rooms[room].players[socket.id] = {
       id: socket.id,
-      nickname: data.nickname || 'NoName',
-      color: data.color,
+      nickname: nickname || 'NoName',
+      color: color,
+      skin: skin || null,  // сохраняем ссылку на скин (Data URL)
       x: Math.random() * GAME_WIDTH,
       y: Math.random() * GAME_HEIGHT,
       targetX: Math.random() * GAME_WIDTH,
@@ -55,72 +73,117 @@ io.on('connection', socket => {
       size: 15
     };
 
-    socket.emit('currentState', { players, foods });
-    socket.broadcast.emit('newPlayer', players[socket.id]);
+    socket.emit('currentState', { 
+      players: rooms[room].players, 
+      foods: rooms[room].foods, 
+      spikes: rooms[room].spikes,
+      roomName: room, 
+      connections: Object.keys(rooms[room].players).length 
+    });
+    socket.to(room).emit('newPlayer', rooms[room].players[socket.id]);
   });
 
-  socket.on('playerMove', data => {
-    if (players[socket.id]) {
-      players[socket.id].targetX = data.x;
-      players[socket.id].targetY = data.y;
-    }
+  socket.on('joystickMove', data => {
+    const room = socket.room;
+    const player = room && rooms[room]?.players[socket.id];
+    if (!player) return;
+  
+    player.x += data.dx;
+    player.y += data.dy;
+  
+    const MAP_SIZE = 5000;
+    player.x = Math.max(0, Math.min(MAP_SIZE, player.x));
+    player.y = Math.max(0, Math.min(MAP_SIZE, player.y));
+  });
+  
+
+  socket.on('getRooms', () => {
+    const activeRooms = Object.keys(rooms).filter(r => Object.keys(rooms[r].players).length > 0);
+    socket.emit('roomsList', activeRooms);
   });
 
   socket.on('disconnect', () => {
+    const room = socket.room;
+    if (room && rooms[room]) {
+      delete rooms[room].players[socket.id];
+      io.to(room).emit('playerDisconnect', socket.id);
+      if (Object.keys(rooms[room].players).length === 0) {
+        delete rooms[room];
+      }
+    }
     console.log(`Отключился: ${socket.id}`);
-    delete players[socket.id];
-    io.emit('playerDisconnect', socket.id);
   });
 });
 
 setInterval(() => {
-  for (let id in players) {
-    let player = players[id];
-    let dx = player.targetX - player.x;
-    let dy = player.targetY - player.y;
-    let dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 1) {
-      player.x += (dx / dist) * PLAYER_SPEED;
-      player.y += (dy / dist) * PLAYER_SPEED;
-    }
-    player.x = Math.max(player.size, Math.min(GAME_WIDTH - player.size, player.x));
-    player.y = Math.max(player.size, Math.min(GAME_HEIGHT - player.size, player.y));
-  }
+  for (let room in rooms) {
+    const roomData = rooms[room];
+    const players = roomData.players;
+    const foods = roomData.foods;
+    const spikes = roomData.spikes;
 
-  for (let pid in players) {
-    let player = players[pid];
-    for (let i = foods.length - 1; i >= 0; i--) {
-      let food = foods[i];
-      if (distance(player.x, player.y, food.x, food.y) < player.size + food.size) {
-        player.size += FOOD_GROWTH;
-        foods.splice(i, 1);
-        foods.push(spawnFood());
-      }
-    }
-  }
+    for (let id in players) {
+  let player = players[id];
+  
+  player.x = Math.max(player.size, Math.min(GAME_WIDTH - player.size, player.x));
+  player.y = Math.max(player.size, Math.min(GAME_HEIGHT - player.size, player.y));
+}
 
-  const playerIds = Object.keys(players);
-  for (let i = 0; i < playerIds.length; i++) {
-    let playerA = players[playerIds[i]];
-    for (let j = i + 1; j < playerIds.length; j++) {
-      let playerB = players[playerIds[j]];
-      let d = distance(playerA.x, playerA.y, playerB.x, playerB.y);
-      if (d < playerA.size + playerB.size) {
-        if (playerA.size > playerB.size * EAT_THRESHOLD) {
-          playerA.size += playerB.size * 0.5;
-          io.to(playerB.id).emit('gameOver', { reason: 'Вас поглотил игрок ' + playerA.nickname });
-          delete players[playerB.id];
-          io.emit('playerDisconnect', playerB.id);
-        } else if (playerB.size > playerA.size * EAT_THRESHOLD) {
-          playerB.size += playerA.size * 0.5;
-          io.to(playerA.id).emit('gameOver', { reason: 'Вас поглотил игрок ' + playerB.nickname });
-          delete players[playerA.id];
-          io.emit('playerDisconnect', playerA.id);
+
+    for (let pid in players) {
+      let player = players[pid];
+      for (let i = foods.length - 1; i >= 0; i--) {
+        let food = foods[i];
+        let d = Math.sqrt((food.x - player.x) ** 2 + (food.y - player.y) ** 2);
+        if (d < player.size + food.size) {
+          player.size += FOOD_GROWTH;
+          foods.splice(i, 1);
+          foods.push(spawnFood());
         }
       }
     }
+
+
+    for (let pid in players) {
+      let player = players[pid];
+      spikes.forEach(spike => {
+        let d = Math.sqrt((spike.x - player.x) ** 2 + (spike.y - player.y) ** 2);
+        if (d < player.size + spike.size) {
+          if (player.size > 30) {
+            player.size = Math.max(15, player.size / 2);
+          }
+        }
+      });
+    }
+
+    const playerIds = Object.keys(players);
+    for (let i = 0; i < playerIds.length; i++) {
+      let playerA = players[playerIds[i]];
+      for (let j = i + 1; j < playerIds.length; j++) {
+        let playerB = players[playerIds[j]];
+        let d = Math.sqrt((playerA.x - playerB.x) ** 2 + (playerA.y - playerB.y) ** 2);
+        if (d < playerA.size + playerB.size) {
+          if (playerA.size > playerB.size * EAT_THRESHOLD) {
+            playerA.size += playerB.size * 0.5;
+            io.to(playerB.id).emit('gameOver', { reason: 'Вас поглотил игрок ' + playerA.nickname });
+            delete players[playerB.id];
+            io.to(room).emit('playerDisconnect', playerB.id);
+          } else if (playerB.size > playerA.size * EAT_THRESHOLD) {
+            playerB.size += playerA.size * 0.5;
+            io.to(playerA.id).emit('gameOver', { reason: 'Вас поглотил игрок ' + playerB.nickname });
+            delete players[playerA.id];
+            io.to(room).emit('playerDisconnect', playerA.id);
+          }
+        }
+      }
+    }
+
+    io.to(room).emit('stateUpdate', { 
+      players, 
+      foods, 
+      spikes,
+      roomName: room, 
+      connections: Object.keys(players).length 
+    });
   }
-
-  io.emit('stateUpdate', { players, foods });
-
 }, 50);

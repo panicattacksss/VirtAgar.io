@@ -16,19 +16,97 @@
       display: block;
       margin: 0 auto;
     }
-    #menu { /* ... */ }
-    #leaderboard { /* ... */ }
+    #menu {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+      z-index: 10;
+    }
+    #menu input, #menu button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px;
+      width: 220px;
+    }
+    #roomsList {
+      margin-top: 10px;
+      max-height: 100px;
+      overflow-y: auto;
+      background: rgba(255,255,255,0.9);
+      color: #000;
+      width: 240px;
+      text-align: left;
+      padding: 5px;
+      border-radius: 5px;
+    }
+    #roomsList div {
+      padding: 3px;
+      cursor: pointer;
+    }
+    #roomsList div:hover {
+      background: #ddd;
+    }
+    #leaderboard {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255,255,255,0.9);
+      padding: 10px;
+      border-radius: 5px;
+      max-height: 90%;
+      overflow-y: auto;
+      z-index: 5;
+    }
+    #leaderboard h3 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      text-align: center;
+    }
+    #leaderboard ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 14px;
+    }
+    #leaderboard li {
+      margin-bottom: 5px;
+    }
+    #roomInfo {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.8);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 14px;
+      z-index: 5;
+    }
     #inputVideo, #mpCanvas {
       display: none;
     }
   </style>
 </head>
 <body>
-  <div id="menu">
-    <h1>VirtAgar.io</h1>
-    <input type="text" id="nicknameInput" placeholder="Введите ник">
-    <button id="startButton">Старт</button>
-  </div>
+<div id="menu">
+  <h1>VirtAgar.io</h1>
+  <input type="text" id="nicknameInput" placeholder="Введите ник">
+  <input type="text" id="roomInput" placeholder="Введите название комнаты">
+  <input type="file" id="skinInput" accept="image/*">
+  <button id="startButton">Старт</button>
+  <button id="refreshRoomsButton">Обновить комнаты</button>
+  <div id="roomsList"></div>
+</div>
+
+
+  <div id="roomInfo"></div>
 
   <canvas id="gameCanvas" width="800" height="600"></canvas>
 
