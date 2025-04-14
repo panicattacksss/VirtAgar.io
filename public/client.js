@@ -80,6 +80,23 @@ socket.on('connect', () => {
   selfId = socket.id;
   console.log('Подключено с id:', selfId);
 });
+socket.on('serverLoad', data => {
+  document.getElementById('cpu').innerText = `CPU: ${data.loadAvg}`;
+  document.getElementById('ram').innerText = `RAM: ${data.usedMemMB}/${data.totalMemMB} MB`;
+  document.getElementById('online').innerText = `Players: ${data.connections}`;
+});
+let lastPing = Date.now();
+
+setInterval(() => {
+  socket.emit('pingCheck');
+  lastPing = Date.now();
+}, 1000);
+
+socket.on('pongCheck', () => {
+  const now = Date.now();
+  const ping = now - lastPing;
+  document.getElementById('ping').innerText = `Ping: ${ping} ms`;
+});
 
 socket.on('currentState', data => {
   players = data.players;

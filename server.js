@@ -4,6 +4,7 @@ const app = express();
 const server = require('http').createServer(app);
 const io = require('socket.io')(server);
 const PORT = process.env.PORT || 3000;
+const os = require('os');
 
 app.use(express.static('public'));
 
@@ -20,6 +21,20 @@ const FOOD_GROWTH = 1;
 const SPIKE_COUNT = 10;
 const SPIKE_SIZE = 20;
 const EAT_THRESHOLD = 1.1;
+
+function getServerLoad() {
+  const freeMem = os.freemem();
+  const totalMem = os.totalmem();
+  const usedMem = totalMem - freeMem;
+  const loadAvg = os.loadavg()[0]; // средняя загрузка за 1 мин
+
+  return {
+    usedMemMB: (usedMem / 1024 / 1024).toFixed(1),
+    totalMemMB: (totalMem / 1024 / 1024).toFixed(1),
+    loadAvg: loadAvg.toFixed(2),
+    connections: Object.keys(io.sockets.sockets).length
+  };
+}
 
 function spawnFood() {
   return {
@@ -187,3 +202,11 @@ setInterval(() => {
     });
   }
 }, 50);
+setInterval(() => {
+  const load = getServerLoad();
+  io.emit('serverLoad', load);
+}, 2000);
+
+socket.on('pingCheck', () => {
+  socket.emit('pongCheck');
+});
