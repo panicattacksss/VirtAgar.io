@@ -27,12 +27,15 @@ function getServerLoad() {
   const totalMem = os.totalmem();
   const usedMem = totalMem - freeMem;
   const loadAvg = os.loadavg()[0]; // средняя загрузка за 1 мин
-
+  let totalPlayers = 0;
+  for (let room in rooms) {
+    totalPlayers += Object.keys(rooms[room].players).length;
+  }
   return {
     usedMemMB: (usedMem / 1024 / 1024).toFixed(1),
     totalMemMB: (totalMem / 1024 / 1024).toFixed(1),
     loadAvg: loadAvg.toFixed(2),
-    connections: Object.keys(io.sockets.sockets).length
+    connections: totalPlayers
   };
 }
 
@@ -61,6 +64,9 @@ let rooms = {}; // { roomName: { players: {}, foods: [], spikes: [] } }
 io.on('connection', socket => {
   console.log(`Новое соединение: ${socket.id}`);
 
+  socket.on('pingCheck', () => {
+    socket.emit('pongCheck');
+  });
   socket.on('joinGame', data => {
     const { nickname, color, room, skin } = data;
   socket.join(room);
@@ -207,6 +213,4 @@ setInterval(() => {
   io.emit('serverLoad', load);
 }, 2000);
 
-socket.on('pingCheck', () => {
-  socket.emit('pongCheck');
-});
+
