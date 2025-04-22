@@ -1,16 +1,36 @@
 // server.js
 const express = require('express');
 const app = express();
-const server = require('http').createServer(app);
-const io = require('socket.io')(server);
-const PORT = process.env.PORT || 3000;
+const http = require('http');
+const server = http.createServer(app);
+const { Server } = require('socket.io');
 const os = require('os');
 
-app.use(express.static('public'));
+const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const io = new Server(server, {
+  perMessageDeflate: {
+    threshold: 1024,
+  }
 });
+
+const { createAdapter } = require('@socket.io/redis-adapter');
+const { createClient } = require('redis');
+
+(async () => {
+  try {
+    const pubClient = createClient();
+    const subClient = pubClient.duplicate();
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log('Redis adapter подключен.');
+    startServer();
+  } catch (err) {
+    console.error('Ошибка подключения Redis:', err);
+  }
+})();
+
+app.use(express.static('public'));
 
 const GAME_WIDTH = 5000;
 const GAME_HEIGHT = 5000;
@@ -26,7 +46,7 @@ function getServerLoad() {
   const freeMem = os.freemem();
   const totalMem = os.totalmem();
   const usedMem = totalMem - freeMem;
-  const loadAvg = os.loadavg()[0]; // средняя загрузка за 1 мин
+  const loadAvg = os.platform() === 'win32' ? '-' : os.loadavg()[0].toFixed(2);
   let totalPlayers = 0;
   for (let room in rooms) {
     totalPlayers += Object.keys(rooms[room].players).length;
@@ -34,7 +54,7 @@ function getServerLoad() {
   return {
     usedMemMB: (usedMem / 1024 / 1024).toFixed(1),
     totalMemMB: (totalMem / 1024 / 1024).toFixed(1),
-    loadAvg: loadAvg.toFixed(2),
+    loadAvg,
     connections: totalPlayers
   };
 }
@@ -58,19 +78,19 @@ function spawnSpike() {
     color: 'black'
   };
 }
-
 let rooms = {}; // { roomName: { players: {}, foods: [], spikes: [] } }
 
 io.on('connection', socket => {
-  console.log(`Новое соединение: ${socket.id}`);
+  console.log(`Новое соединение: ${socket.id} (Worker ${process.pid})`);
 
   socket.on('pingCheck', () => {
     socket.emit('pongCheck');
   });
+
   socket.on('joinGame', data => {
     const { nickname, color, room, skin } = data;
-  socket.join(room);
-  socket.room = room;
+    socket.join(room);
+    socket.room = room;
 
     if (!rooms[room]) {
       rooms[room] = { players: {}, foods: [], spikes: [] };
@@ -86,7 +106,7 @@ io.on('connection', socket => {
       id: socket.id,
       nickname: nickname || 'NoName',
       color: color,
-      skin: skin || null,  // сохраняем ссылку на скин (Data URL)
+      skin: skin || null,
       x: Math.random() * GAME_WIDTH,
       y: Math.random() * GAME_HEIGHT,
       targetX: Math.random() * GAME_WIDTH,
@@ -112,12 +132,11 @@ io.on('connection', socket => {
     player.x += data.dx;
     player.y += data.dy;
   
-    const MAP_SIZE = 5000;
+    const MAP_SIZE = GAME_WIDTH;
     player.x = Math.max(0, Math.min(MAP_SIZE, player.x));
     player.y = Math.max(0, Math.min(MAP_SIZE, player.y));
   });
   
-
   socket.on('getRooms', () => {
     const activeRooms = Object.keys(rooms).filter(r => Object.keys(rooms[r].players).length > 0);
     socket.emit('roomsList', activeRooms);
@@ -144,19 +163,19 @@ setInterval(() => {
     const spikes = roomData.spikes;
 
     for (let id in players) {
-  let player = players[id];
-  
-  player.x = Math.max(player.size, Math.min(GAME_WIDTH - player.size, player.x));
-  player.y = Math.max(player.size, Math.min(GAME_HEIGHT - player.size, player.y));
-}
-
+      let player = players[id];
+      player.x = Math.max(player.size, Math.min(GAME_WIDTH - player.size, player.x));
+      player.y = Math.max(player.size, Math.min(GAME_HEIGHT - player.size, player.y));
+    }
 
     for (let pid in players) {
       let player = players[pid];
       for (let i = foods.length - 1; i >= 0; i--) {
         let food = foods[i];
-        let d = Math.sqrt((food.x - player.x) ** 2 + (food.y - player.y) ** 2);
-        if (d < player.size + food.size) {
+        const dx = food.x - player.x;
+        const dy = food.y - player.y;
+        const rSum = player.size + food.size;
+        if (dx * dx + dy * dy < rSum * rSum) {
           player.size += FOOD_GROWTH;
           foods.splice(i, 1);
           foods.push(spawnFood());
@@ -164,12 +183,13 @@ setInterval(() => {
       }
     }
 
-
     for (let pid in players) {
       let player = players[pid];
       spikes.forEach(spike => {
-        let d = Math.sqrt((spike.x - player.x) ** 2 + (spike.y - player.y) ** 2);
-        if (d < player.size + spike.size) {
+        const dx = spike.x - player.x;
+        const dy = spike.y - player.y;
+        const rSum = player.size + spike.size;
+        if (dx * dx + dy * dy < rSum * rSum) {
           if (player.size > 30) {
             player.size = Math.max(15, player.size / 2);
           }
@@ -182,8 +202,10 @@ setInterval(() => {
       let playerA = players[playerIds[i]];
       for (let j = i + 1; j < playerIds.length; j++) {
         let playerB = players[playerIds[j]];
-        let d = Math.sqrt((playerA.x - playerB.x) ** 2 + (playerA.y - playerB.y) ** 2);
-        if (d < playerA.size + playerB.size) {
+        const dx = playerA.x - playerB.x;
+        const dy = playerA.y - playerB.y;
+        const rSum = playerA.size + playerB.size;
+        if (dx * dx + dy * dy < rSum * rSum) {
           if (playerA.size > playerB.size * EAT_THRESHOLD) {
             playerA.size += playerB.size * 0.5;
             io.to(playerB.id).emit('gameOver', { reason: 'Вас поглотил игрок ' + playerA.nickname });
@@ -207,10 +229,10 @@ setInterval(() => {
       connections: Object.keys(players).length 
     });
   }
-}, 50);
+}, 40);
+
+
 setInterval(() => {
   const load = getServerLoad();
   io.emit('serverLoad', load);
 }, 2000);
-
-
