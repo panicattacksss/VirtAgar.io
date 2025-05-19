@@ -177,29 +177,93 @@ function drawPlayer(player, offsetX, offsetY) {
   }
 }
 
+const foodImages = [];
+const foodPaths = [
+  '/images/food/cola.png',
+  '/images/food/burger.png',
+  '/images/food/potato.png'
+];
 
-function render() {
+foodPaths.forEach(path => {
+  const img = new Image();
+  img.src = path;
+  foodImages.push(img);
+});
+const spikeImages = [];
+const spikeImg1 = new Image();
+spikeImg1.src = '/images/orig-Photoroom.png';
+spikeImages.push(spikeImg1);
+
+function drawNeonBackground(ctx, width, height) {
+  // Заливаем фон градиентом
+  let gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, '#1e1e2f');
+  gradient.addColorStop(1, '#3a3a5e');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+
+  // Рисуем неоновые полосы
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(0, 255, 204, 0.15)'; // мягкий неон
+
+  for (let x = 0; x < width; x += 60) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+  }
+
+  for (let y = 0; y < height; y += 60) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+}
+
+function render(timestamp) {
+  gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+  drawNeonBackground(gameCtx, gameCanvas.width, gameCanvas.height);
+
   let offsetX = 0, offsetY = 0;
   if (players[selfId]) {
     offsetX = players[selfId].x - gameCanvas.width / 2;
     offsetY = players[selfId].y - gameCanvas.height / 2;
   }
-  gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
 
-  foods.forEach(food => {
-    gameCtx.beginPath();
-    gameCtx.arc(food.x - offsetX, food.y - offsetY, food.size, 0, 2 * Math.PI);
-    gameCtx.fillStyle = food.color || 'green';
-    gameCtx.fill();
-    gameCtx.stroke();
+  foods.forEach((food, i) => {
+    const x = food.x - offsetX;
+    const y = food.y - offsetY;
+    const img = foodImages[i % foodImages.length];
+  
+    if (img.complete) {
+      const size = 32;
+      gameCtx.drawImage(img, x - size / 2, y - size / 2, size, size);
+    } else {
+      gameCtx.beginPath();
+      gameCtx.arc(x, y, 16, 0, 2 * Math.PI);
+      gameCtx.fillStyle = food.color || 'green';
+      gameCtx.fill();
+      gameCtx.stroke();
+    }
   });
 
-  spikes.forEach(spike => {
-    gameCtx.beginPath();
-    gameCtx.arc(spike.x - offsetX, spike.y - offsetY, spike.size, 0, 2 * Math.PI);
-    gameCtx.fillStyle = spike.color || 'black';
-    gameCtx.fill();
-    gameCtx.stroke();
+  spikes.forEach((spike, i) => {
+    const x = spike.x - offsetX;
+    const y = spike.y - offsetY;
+    const img = spikeImages[i % spikeImages.length];
+  
+    if (img.complete) {
+      const size = 64;
+      gameCtx.drawImage(img, x - size / 2, y - size / 2, size, size);
+    } else {
+      gameCtx.beginPath();
+      gameCtx.arc(x, y, spike.size, 0, 2 * Math.PI);
+      gameCtx.fillStyle = spike.color || 'black';
+      gameCtx.fill();
+      gameCtx.stroke();
+    }
   });
 
   for (let id in players) {
@@ -209,6 +273,7 @@ function render() {
   updateLeaderboard();
   requestAnimationFrame(render);
 }
+
 
 const centerX = 0.5;
 const centerY = 0.5;
@@ -227,22 +292,19 @@ function onMediapipeResults(results) {
   mpCtx.restore();
 
   const nose = results.poseLandmarks[0];
-  const mirroredX = 1 - nose.x; // чтобы было интуитивно — влево = влево
-  const dx = (mirroredX - 0.5) * 2; // от -1 до 1
+  const mirroredX = 1 - nose.x; 
+  const dx = (mirroredX - 0.5) * 2; 
   const dy = (nose.y - 0.5) * 2;
 
-  // Вы можете нормализовать/ограничить вектор скорости:
   const MAX_SPEED = 15;
   const magnitude = Math.sqrt(dx * dx + dy * dy);
   let speedX = dx * MAX_SPEED;
   let speedY = dy * MAX_SPEED;
 
-  // можно добавить чувствительность
   const DEAD_ZONE = 0.1;
   if (Math.abs(dx) < DEAD_ZONE) speedX = 0;
   if (Math.abs(dy) < DEAD_ZONE) speedY = 0;
 
-  // Отправляем не абсолютную позицию, а вектор движения
   socket.emit('joystickMove', { dx: speedX, dy: speedY });
 }
 
@@ -268,3 +330,45 @@ function startMediapipe() {
   });
   camera.start();
 }
+document.getElementById('skinButton').addEventListener('click', () => {
+  document.getElementById('skinInput').click();
+});
+
+document.getElementById('skinInput').addEventListener('change', (e) => {
+  const fileName = e.target.files[0]?.name || 'Файл не выбран';
+  document.getElementById('skinFileName').textContent = fileName;
+});
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+function drawNeonBackground() {
+  let gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  gradient.addColorStop(0, '#1e1e2f');
+  gradient.addColorStop(1, '#3a3a5e');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(0, 255, 204, 0.15)';
+
+  for (let x = 0; x < canvas.width; x += 60) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+
+  for (let y = 0; y < canvas.height; y += 60) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+
+function gameLoop() {
+  drawNeonBackground();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();

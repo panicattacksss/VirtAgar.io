@@ -14,7 +14,7 @@ server.listen(PORT, () => {
 
 const GAME_WIDTH = 5000;
 const GAME_HEIGHT = 5000;
-const PLAYER_SPEED = 3;
+const PLAYER_SPEED = 1.5;
 const FOOD_COUNT = 600;
 const FOOD_SIZE = 5;
 const FOOD_GROWTH = 1;
