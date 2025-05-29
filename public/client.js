@@ -195,16 +195,14 @@ spikeImg1.src = '/images/orig-Photoroom.png';
 spikeImages.push(spikeImg1);
 
 function drawNeonBackground(ctx, width, height) {
-  // Заливаем фон градиентом
   let gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, '#1e1e2f');
   gradient.addColorStop(1, '#3a3a5e');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  // Рисуем неоновые полосы
   ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(0, 255, 204, 0.15)'; // мягкий неон
+  ctx.strokeStyle = 'rgba(0, 255, 204, 0.15)'; 
 
   for (let x = 0; x < width; x += 60) {
     ctx.beginPath();
